@@ -1,0 +1,2 @@
+DELETE https://tranquil-sands-81334.herokuapp.com/api/persons/1
+Content-Type: application/json
