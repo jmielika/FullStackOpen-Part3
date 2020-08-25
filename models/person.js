@@ -1,4 +1,6 @@
 const mongoose = require('mongoose')
+mongoose.set('useCreateIndex', true);
+const uniqueValidator = require('mongoose-unique-validator')
 const { ResumeToken } = require('mongodb')
 
 mongoose.set('useFindAndModify', false)
@@ -24,15 +26,19 @@ mongoose.connect(url, { useNewUrlParser: true, useUnifiedTopology: true })
 const personSchema = new mongoose.Schema({
     name: {
         type: String,
-        minlength: 5,
-        required: true
+        minlength: 3,
+        required: true,
+        unique: true,
+        uniqueCaseInsensitive: true
     },
     number: {
         type: String,
-        minlength: 5,
+        minlength: 8,
         required: true
     } 
 })
+
+personSchema.plugin(uniqueValidator)
 
 personSchema.set('toJSON', {
     transform: (document, returnedObject) => {
@@ -43,33 +49,5 @@ personSchema.set('toJSON', {
 })
 
 const Person = mongoose.model('Person', personSchema)
-
-/*if (process.argv.length<4) {
-  Person.find().then(result => {
-    console.log("phonebook:")
-    result.forEach(person => {
-      console.log(person.name, person.number)
-    })
-    mongoose.connection.close()
-  })
-}
-
-/*if (process.argv.length === 5) {
-  console.log(process.argv[3], process.argv[4])
-
-  const nameArg = process.argv[3]
-  const numberArg = process.argv[4]
-
-
-  const person = new Person({
-    name: nameArg,
-    number: numberArg,
-  })
-
-  person.save().then(response => {
-    console.log(`added ${nameArg} number ${numberArg} to phonebook`)
-    mongoose.connection.close()
-  })
-}*/
 
 module.exports = mongoose.model('Person', personSchema)
