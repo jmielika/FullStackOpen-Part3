@@ -1,45 +1,38 @@
+require('dotenv').config()
 const express = require('express')
 const app = express()
 const morgan = require('morgan')
 const cors = require('cors')
+const Person = require('./models/person')
 
+app.use(express.static('build'))
 app.use(cors())
 app.use(express.json())
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :postData'))
-app.use(express.static('build'))
 
 morgan.token('postData', function (req, res) {return JSON.stringify(req.body) })
 
+let people = []
+Person.find({}).then(peopleFromDatabase => {
+    people = people.concat(peopleFromDatabase)
+})
 
-
-let persons = [
-    {
-      "name": "Dan Abramov",
-      "number": "22-545 -654654",
-      "id": 3
-    },
-    {
-      "name": "Mary Poppendieck",
-      "number": "39-23-6423122",
-      "id": 4
-    },
-    {
-      "name": "jani petteri",
-      "number": "6465456456155",
-      "id": 11
-    }
-  ]
 
 app.get('/', (request, response) => {
     response.send('<h1>Hello World!</h1>')
   })
 
-app.get('/api/persons', (request, response) => {
-    response.json(persons)
+app.get('/api/people', (request, response) => {
+    Person.find({}).then(people => {
+        response.json(people)
+    })
 })
 
 app.get('/info', (request, response) => {
-    let personCount = countPersons()
+    Person.find({}).then(peopleFromDatabase => {
+        people = [...peopleFromDatabase]
+    })
+    let personCount = people.length
     let timeOfRequest = new Date()
     response.send(`
             <p>Phonebook has info for ${personCount} people</p>
@@ -47,62 +40,99 @@ app.get('/info', (request, response) => {
     `)
 })
 
-app.get('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const person = persons.find(person => person.id === id)
-    if (person) {
-        response.json(person)
-    } else {
-        response.status(404).end()
-    }
+app.get('/api/people/:id', (request, response, next) => {
+    Person.findById(request.params.id)
+        .then(person => {
+            if (person) {
+                response.json(person)
+            } else {
+                response.status(404).end()
+            }
+        })
+        /*.catch(error => {
+            console.log(error)
+            response.status(400).send({ error: 'malformatted id' })
+        })*/
+        .catch(error => next(error))
 })
 
-const countPersons = () => {
-    return persons.length
+app.put('/api/people/:id', (request, response, next) => {
+    const body = request.body
+
+    const person = new Person({
+        name: body.name,
+        number: body.number,
+        _id: request.params.id
+    })
+
+    Person.findByIdAndUpdate(request.params.id, person, { new: true })
+        .then(updatedPerson => {
+            response.json(updatedPerson)
+        })
+        .catch(error => next(error))
+})
+
+const errorHandler = (error, request, response, next) => {
+    console.log(error.message)
+  
+    if (error.name === 'CastError') {
+      return response.status(400).send({ error: 'malformatted id' })
+    }
+  
+    next(error)
+  }
+  
+app.use(errorHandler)
+
+const countPeople = () => {
+    return people.length
 }
 
-app.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    persons = persons.filter(person => person.id !== id)
+app.delete('/api/people/:id', (request, response, next) => {
 
-    response.status(204).end()
+    Person.findByIdAndDelete(request.params.id)
+        .then(result => {
+            response.status(204).end()
+        })
+        .catch(error => next(error))
 })
 
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/people', (request, response) => {
     const body = request.body
+
     if (!body.name || isNaN(body.number) || body.number < 1) {
         return response.status(400).json({
             error: 'name or number cannot be empty or smaller than 1'
         })
     }
 
-    if (persons.filter(person => person.name.toLocaleLowerCase() === body.name.toLocaleLowerCase()).length > 0) {
+    if (people.filter(person => person.name.toLocaleLowerCase() === body.name.toLocaleLowerCase()).length > 0) {
         return response.status(400).json({
             error: `${body.name} is already added to the phonebook`
         })
       }
 
 
-    const person = {
+    const person = new Person({
         name: body.name,
-        number: body.number,
-        id: generateId()
-    }
+        number: body.number
+    })
 
-    persons = persons.concat(person)
+    people = people.concat(person)
 
-    response.json(person)
-
+    person.save().then(savedPerson => {
+        response.json(savedPerson)
+    })
     
 })
 
-const generateId = () => {
-    return  Math.floor(Math.random() * (2**64 - 10**12)) + 10**12
-}
-
-//${personCount}
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT
 app.listen(PORT, () => { 
     console.log(`Server running on port ${PORT}`)
 })
+
+
+
+
+
