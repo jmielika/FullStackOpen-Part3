@@ -72,21 +72,7 @@ app.put('/api/people/:id', (request, response, next) => {
         .catch(error => next(error))
 })
 
-const errorHandler = (error, request, response, next) => {
-    console.log(error.message)
-  
-    if (error.name === 'CastError') {
-      return response.status(400).send({ error: 'malformatted id' })
-    }
-  
-    next(error)
-  }
-  
-app.use(errorHandler)
 
-const countPeople = () => {
-    return people.length
-}
 
 app.delete('/api/people/:id', (request, response, next) => {
 
@@ -98,20 +84,14 @@ app.delete('/api/people/:id', (request, response, next) => {
 })
 
 
-app.post('/api/people', (request, response) => {
+app.post('/api/people', (request, response, next) => {
     const body = request.body
 
-    if (!body.name || isNaN(body.number) || body.number < 1) {
-        return response.status(400).json({
-            error: 'name or number cannot be empty or smaller than 1'
-        })
-    }
-
-    if (people.filter(person => person.name.toLocaleLowerCase() === body.name.toLocaleLowerCase()).length > 0) {
+    /*if (people.filter(person => person.name.toLocaleLowerCase() === body.name.toLocaleLowerCase()).length > 0) {
         return response.status(400).json({
             error: `${body.name} is already added to the phonebook`
         })
-      }
+      }*/
 
 
     const person = new Person({
@@ -121,11 +101,28 @@ app.post('/api/people', (request, response) => {
 
     people = people.concat(person)
 
-    person.save().then(savedPerson => {
-        response.json(savedPerson)
-    })
+    person.save()
+        .then(savedPerson => savedPerson.toJSON())
+        .then(savedAndFormattedPerson => {
+            response.json(savedAndFormattedPerson)
+        })
+        .catch(error => next(error))
     
 })
+
+const errorHandler = (error, request, response, next) => {
+    console.log(error.message)
+  
+    if (error.name === 'CastError') {
+      return response.status(400).send({ error: 'malformatted id' })
+    } else if (error.name === 'ValidationError') {
+        return response.status(400).json({ error: error.message })
+    }
+  
+    next(error)
+  }
+  
+app.use(errorHandler)
 
 const PORT = process.env.PORT
 app.listen(PORT, () => { 
